@@ -1,0 +1,59 @@
+---
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+    tags-ignore:
+      - "*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build & Test
+        run: |
+          ./build.sh CIBuild
+
+      - name: Report .NET Test Results
+        if: always()
+        uses: dorny/test-reporter@v2
+        with:
+          name: .NET Tests Results
+          path: artifacts/test-results/*.trx
+          reporter: dotnet-trx
+
+
+      - name: Upload Test logs
+        if: always()  # ensures logs are uploaded even if tests fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: Test Logs
+          path: |
+            artifacts/test-results/*.log
+
+
+
+

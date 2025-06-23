@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\MyProject.Analyzers\MyProject.Analyzers.csproj" OutputItemType="Analyzer">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </ProjectReference>
+    </ItemGroup>
+    <ItemGroup>
+      <PackageReference Include="Spectre.Console" Version="0.50.0" />
+    </ItemGroup>
+</Project>
