@@ -15,8 +15,10 @@ using Nuke.Common.Utilities.Collections;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
 using LibGit2Sharp;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Nuke.Common.CI.GitHubActions;
 using Nuke.Common.Tools.Git;
+using Nuke.Common.Utilities;
 
 [HandleHelpRequests(Priority = 20)]
 [SuppressMessage("ReSharper", "AllUnderscoreLocalParameterName")]
@@ -37,12 +39,22 @@ partial class Build : NukeBuild
         RenderBanner(ProjectName);
     }
 
+    protected override void OnBuildInitialized()
+    {
+        var config = GitRepository.Config;
+        GitUsername ??= config.Get<string>("user.name", ConfigurationLevel.Global)?.Value;
+        GitEmail ??= config.Get<string>("user.email", ConfigurationLevel.Global)?.Value;
+    }
+
     public static int Main () => Execute<Build>(x => x.Compile);
 
 
     GitHubActions GitHubActions => GitHubActions.Instance;
 
     [Parameter("Nuget.org API key required to push packages")][Secret] readonly string NugetApiKey;
+    [Parameter("Type of release to make")] readonly ReleaseType ReleaseType;
+    [Parameter("Git username to use for new commits")] string GitUsername;
+    [Parameter("Git email to use for new commits")] string GitEmail;
 
     [Parameter("Nuget feed to which packages are pushed (default: https://api.nuget.org/v3/index.json)")] readonly string NugetFeed = "https://api.nuget.org/v3/index.json";
 
@@ -189,17 +201,55 @@ partial class Build : NukeBuild
                 .SetTargetPath(ArtifactsDirectory / NugetArtifactsGlobPattern));
         });
 
-    Target CreateReleaseTag => _ => _
-        .Description("Tags current commit with version number")
+    Target PrepareRelease => _ => _
+        .Description("Adjusts version.json to next release based on Major/Minor")
         .Executes(() =>
         {
             if(!IsCurrentBranchCommitted())
                 Assert.Fail("Current branch must be commited");
-            GitRepository.Tags.Add($"v{Version.NuGetPackageVersion}", GitRepository.Head.Tip);
+            if (ReleaseType is ReleaseType.Major or ReleaseType.Minor)
+            {
+                var jsonFilePath = RootDirectory / "version.json";
+                var versionJson = jsonFilePath.ReadJson();
+                var majorVersion = Version.VersionMajor + ReleaseType is ReleaseType.Major ? 1 : 0;
+                var minorVersion = Version.VersionMinor + ReleaseType is ReleaseType.Major ? 1 : 0;
+                var nextVersion = $"{majorVersion}.{minorVersion}{Version.PrereleaseVersion}";
+                versionJson["version"] = nextVersion;
+                jsonFilePath.WriteJson(versionJson);
+                CommitUnstaged($"Increment version.json {ReleaseType} version to {nextVersion}");
+            }
+            
         });
 
+    Target TagVersion => _ => _
+        .Description("Tags current commit with version number")
+        .Executes(() =>
+        {
+        });
 
-            [Category("CI")]
+    void AddTag(string tag) => GitRepository.Tags.Add(tag, GitRepository.Head.Tip);
+    void CommitUnstaged(string message)
+    {
+
+        var status = GitRepository.RetrieveStatus();
+        foreach (var entry in status.Where(e =>
+                     e.State.HasFlag(FileStatus.ModifiedInWorkdir) ||
+                     e.State.HasFlag(FileStatus.NewInWorkdir)))
+        {
+            Commands.Stage(GitRepository, entry.FilePath);
+        }
+        
+        if (!GitRepository.RetrieveStatus().IsDirty)
+            return;
+
+        var author = new Signature(GitUsername, GitEmail, DateTimeOffset.Now);
+        var committer = author;
+
+        GitRepository.Commit(message, author, committer);
+    }
+
+
+    [Category("CI")]
     Target CIBuild => _ => _
         .Description("Builds, tests and produces test reports for regular builds on CI")
         .DependsOn(Pack, Test);
@@ -210,4 +260,11 @@ partial class Build : NukeBuild
         .DependsOn(Pack, NugetPush);
 
 
+}
+
+public enum ReleaseType
+{
+    Major,
+    Minor,
+    Regular
 }

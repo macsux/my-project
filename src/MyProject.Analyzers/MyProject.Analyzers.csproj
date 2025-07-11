@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
     
     <PropertyGroup>
-        <TargetFramework>netstandard2.0</TargetFramework>
+        <TargetFrameworks>net9.0;netstandard2.0</TargetFrameworks>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
         <!--
@@ -10,7 +10,7 @@
         RS1038: Compiler extensions should be implemented in assemblies with compiler-provided references   (it doesn't like when you mix analyzers / fixups)
         
         -->
-        <NoWarn>RS2007;NU5128;RS1038</NoWarn>
+        <NoWarn>RS2007;NU5128;RS1038;RS1041</NoWarn>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <IncludeBuildOutput>false</IncludeBuildOutput> <!-- the layout of nuget package is manually controlled for analyzers -->
         <BuildOutputTargetFolder>analyzers</BuildOutputTargetFolder>
@@ -35,15 +35,15 @@
         </PackageReference>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all"/>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" PrivateAssets="all" />
-        <PackageReference Include="PolySharp" Version="1.15.0" Label="Polyfills for using newer .NET constructs while restricted by netstandard2.0">
+        <PackageReference Include="PolySharp" Version="1.15.0" Condition="'$(TargetFramework)' == 'netstandard2.0'" Label="Polyfills for using newer .NET constructs while restricted by netstandard2.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
     </ItemGroup>
 
-    <ItemGroup>
-        <PackageReference Include="Newtonsoft.Json" Version="13.0.3" GeneratePathProperty="true" PrivateAssets="all" IncludeInPackage="true"  />
-    </ItemGroup>
+<!--    <ItemGroup>-->
+<!--        <PackageReference Include="Newtonsoft.Json" Version="13.0.3" GeneratePathProperty="true" PrivateAssets="all" IncludeInPackage="true"  />-->
+<!--    </ItemGroup>-->
     <PropertyGroup>
         <GetTargetPathDependsOn>$(GetTargetPathDependsOn);AddNuGetDlls</GetTargetPathDependsOn> <!-- append additional dlls from nuget references - analyzers can't reference nuget packages without this hack -->
     </PropertyGroup>

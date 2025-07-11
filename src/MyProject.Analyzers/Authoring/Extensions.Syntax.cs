@@ -1,7 +1,9 @@
 ﻿using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-
+using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 namespace MyProject.Analyzers.Authoring;
 
 public static partial class Extensions
@@ -118,4 +120,60 @@ public static partial class Extensions
         return sb.ToString();
     }
 
+    public static T PreservingParent<T>(this T node, Func<T, T> transformation) where T : SyntaxNode
+    {
+        var root = node.SyntaxTree.GetCompilationUnitRoot();
+        var trackedRoot = root.TrackNodes(node);
+        var trackedNode = trackedRoot.GetCurrentNode(node)!;
+        // var originalInterfaceFullyQualifiedName = ParseTypeName(namedSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        var mutatedVersion = transformation(trackedNode).NormalizeWhitespace();
+
+        // reattach parent hierarchy
+        var newRoot = trackedRoot.ReplaceNode(trackedNode, mutatedVersion);
+        mutatedVersion = newRoot.GetCurrentNode(node)!;
+        return mutatedVersion;
+    }
+    public static bool IsPartialTypeDeclaration(this SyntaxNode node) => node is TypeDeclarationSyntax cds && cds.Modifiers.Any(m => m.IsKind(PartialKeyword));
+
+    public static int GetIndentationLevel(this SyntaxNode node, string ident = "    ")
+    {
+        var currentIdent = node.GetIndentation();
+
+        if (string.IsNullOrEmpty(currentIdent) || string.IsNullOrEmpty(ident))
+            return 0;
+
+        int level = currentIdent.Length / ident.Length;
+
+        // Account for cases where mixed spaces or tabs are used inconsistently
+        // e.g., if ident is 4 spaces but indent is 6 spaces, we still floor it to 1
+        return level;
+    }
+    public static string GetIndentation(this SyntaxNode node)
+    {
+        var leadingTrivia = node.GetLeadingTrivia();
+    
+        foreach (var trivia in leadingTrivia.Reverse())
+        {
+            if (trivia.IsKind(SyntaxKind.WhitespaceTrivia))
+            {
+                return trivia.ToFullString();
+            }
+
+            if (trivia.IsKind(SyntaxKind.EndOfLineTrivia))
+            {
+                // Once we cross a newline, we stop
+                break;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    public static IncrementalValueProvider<TResult> Attach<TLeft, TRight, TResult>(
+        this IncrementalValuesProvider<TLeft> left,
+        IncrementalValueProvider<TRight> right,
+        Func<TLeft, TRight, TResult> transform) where TLeft : notnull
+    {
+        throw new NotImplementedException();
+    }
 }

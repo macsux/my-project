@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -19,7 +20,7 @@ public static partial class Extensions
         //------------------------------------------------------------------------------
         """;
     
-    private const string ReplaceToken = "//~REPLACE";
+    
 
     private static HashSet<string> _reservedWords =
     [
@@ -81,10 +82,6 @@ public static partial class Extensions
             using (IndentationContext.Increase())
             {
                 var innerRender = IndentationContext.RenderIndented(renderedItems);
-                // var innerIndent = IndentationContext.CurrentIndent;
-                // var indentedItems = renderedItems
-                //     .Select(r => string.Join(Environment.NewLine,
-                //         r.Split('\n').Select(l => innerIndent + l.TrimEnd())));
 
                 return $"{outerIndent}{openToken}\n{innerRender}\n{outerIndent}{closeToken}";
             }
@@ -107,83 +104,21 @@ public static partial class Extensions
         if(!renderEmpty && string.IsNullOrWhiteSpace(body))
             return;
         var sourceCode = partialTemplateModel.RenderPartial(_ => body);
+        
         context.AddSource(partialTemplateModel.FileName, SourceText.From(sourceCode, Encoding.UTF8));
     }
     public static string RenderPartial<T>(this T partialTemplateModel, Func<T, string> renderBody) where T : PartialTypeModel
     {
-        var typeDeclarationSyntax = partialTemplateModel.PartialType;
-        var root = typeDeclarationSyntax.SyntaxTree.GetRoot();
-        var hierarchy = typeDeclarationSyntax.AncestorsAndSelf().ToList();
-
-        root = root.TrackNodes(hierarchy);
-        var children = new SyntaxList<MemberDeclarationSyntax>();
-        root = new Stripper().Visit(root);
-        foreach(var node in hierarchy)
-        {
-            var currentNode = (MemberDeclarationSyntax)root.GetCurrentNode(node)!;
-            var modifiedNode = currentNode;
-            if(modifiedNode is TypeDeclarationSyntax typeDeclaration)
-            {
-                modifiedNode = typeDeclaration
-                    .WithBaseList(null)
-                    .WithParameterList(null)
-                    .WithMembers(children);
-                root = root.ReplaceNode(currentNode, modifiedNode);
-                children = new SyntaxList<MemberDeclarationSyntax>(modifiedNode);
-            }
-            if(modifiedNode is BaseNamespaceDeclarationSyntax nsDeclaration)
-            {
-                modifiedNode = nsDeclaration.WithMembers(children);
-                root = root.ReplaceNode(currentNode, modifiedNode);
-                break;
-            }
-
-            IndentationContext.Increase();
-        }
-        typeDeclarationSyntax = root.GetCurrentNode(typeDeclarationSyntax)!;
-        var strippedTypeDeclaration = typeDeclarationSyntax
-            .WithOpenBraceToken(typeDeclarationSyntax.OpenBraceToken
-                .WithTrailingTrivia(
-                    SyntaxFactory.CarriageReturnLineFeed,
-                    SyntaxFactory.Comment(ReplaceToken),
-                    SyntaxFactory.CarriageReturnLineFeed))
-            .WithCloseBraceToken(typeDeclarationSyntax.CloseBraceToken
-                .WithLeadingTrivia(typeDeclarationSyntax.CloseBraceToken.LeadingTrivia.LastOrDefault(x => x.IsKind(SyntaxKind.WhitespaceTrivia))))
-            ;
-        root = root.ReplaceNode(typeDeclarationSyntax, strippedTypeDeclaration);
-
-
-        var result = root.ToFullString();
-        // using var indentationScope = IndentationContext.Increase();
         var body = renderBody(partialTemplateModel);
+        IndentationContext.CurrentLevel = partialTemplateModel.IdentLevel;
         var indentedBody = IndentationContext.RenderIndented(body);
-        result = result.Replace(ReplaceToken, indentedBody);
-        // result = $"#nullable enable\n{result}";
-        IndentationContext.Reset();
+        var result = partialTemplateModel.PartialDeclarationTemplate.Replace(PartialTypeModel.ReplaceToken, indentedBody);
         return result;
     }
 
-    /// <summary>
-    /// Strips out things that shouldn't be redeclared, like attributes and pragma trivia
-    /// </summary>
-    private class Stripper : CSharpSyntaxRewriter
-    {
-        public override SyntaxNode? VisitAttributeList(AttributeListSyntax node)
-        {
-            return null;
-        }
+    
+    
+    public static string GetGeneratorQualifiedSourceFileName(this TypeDeclarationSyntax partialType, IIncrementalGenerator generator) =>
+        $"{Regex.Replace(generator.GetType().Name, "(Source)?(Generator)?$","")}{partialType.GetInferredFilename()}.g.cs";
 
-        public override SyntaxToken VisitToken(SyntaxToken token)
-        {
-            token = token.WithTrailingTrivia(OnlyWhitespaceTrivia(token.TrailingTrivia));
-            token = token.WithLeadingTrivia(OnlyWhitespaceTrivia(token.LeadingTrivia));
-            return token;
-        }
-
-        private SyntaxTriviaList OnlyWhitespaceTrivia(SyntaxTriviaList? trivia)
-        {
-            trivia ??= new SyntaxTriviaList();
-            return new SyntaxTriviaList(trivia.Value.Where(x => x.IsKind(SyntaxKind.EndOfLineTrivia) || x.IsKind(SyntaxKind.WhitespaceTrivia)));
-        }
-    }
 }

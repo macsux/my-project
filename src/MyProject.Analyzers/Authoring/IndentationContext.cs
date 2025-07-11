@@ -11,6 +11,8 @@ namespace MyProject.Analyzers.Authoring
         [ThreadStatic]
         private static int _indentLevel;
 
+        private const int IdentSize = 4;
+
         [ThreadStatic]
         private static string? _currentIndent;
 
@@ -49,15 +51,18 @@ namespace MyProject.Analyzers.Authoring
             return new IndentScope();
         }
         private static Regex _lineBreakSplitRegex = new Regex("\r\n|\r|\n");
-        public static string RenderIndented(IEnumerable<string> lines) => string.Join("\n", lines.Select(line => $"{CurrentIndent}{line.TrimStart()}"));
-        public static string RenderIndented(string input)
+        public static string RenderIndented(IEnumerable<string> lines) => RenderIndented(lines, CurrentIndent);
+        public static string RenderIndented(IEnumerable<string> lines, string ident) => string.Join("\n", lines.Select(line => $"{ident}{line.TrimStart()}"));
+        public static string RenderIndented(string input) => RenderIndented(input, CurrentIndent);
+        
+        public static string RenderIndented(string input, string ident)
         {
-            return RenderIndented(_lineBreakSplitRegex.Split(input));
+            return RenderIndented(_lineBreakSplitRegex.Split(input), ident);
         }
 
         private static string ComputeIndent()
         {
-            return _currentIndent = new string(' ', _indentLevel * 4);
+            return _currentIndent = new string(' ', _indentLevel * IdentSize);
         }
         
         private sealed class IndentScope : IDisposable

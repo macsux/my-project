@@ -37,7 +37,5 @@
         <EmbeddedResource Include="FigletFonts\**" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Execution\" />
-    </ItemGroup>
+
 </Project>

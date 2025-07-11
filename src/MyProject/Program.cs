@@ -1,7 +1,6 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
 using Spectre.Console;
-
 AnsiConsole.Write(new Markup("[bold]Welcome your brand new project[/][bold green] MyProject[/]\n"));
 
 if (Environment.GetEnvironmentVariable("GitHubClientId1") == null || Environment.GetEnvironmentVariable("GitHubClientSecret") == null)

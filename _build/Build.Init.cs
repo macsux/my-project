@@ -38,6 +38,7 @@ public partial class Build
         }
     }
     
+    
     void InitializeGit()
     {
         GitTasks.Git("init --initial-branch=main", workingDirectory: RootDirectory);

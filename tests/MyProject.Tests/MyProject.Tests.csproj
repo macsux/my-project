@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FluentAssertions" Version="7.2.0" />
+        <PackageReference Include="TUnit" Version="0.25.21" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\src\MyProject\MyProject.csproj" />
+    </ItemGroup>
+    
+    <Target Name="CheckFluentAssertionsVersion" BeforeTargets="Restore;Build" Label="Ensures that Fluent Assertions doesn't get bumped above v7, which requires commerical license">
+        <ItemGroup>
+            <!-- Select the FluentAssertions PackageReference -->
+            <FluentAssertionsPackageReference Include="@(PackageReference)"
+                                              Condition="'%(Identity)' == 'FluentAssertions'" />
+        </ItemGroup>
+
+        <!-- Extract the version and split by '.' -->
+        <PropertyGroup>
+            <FluentAssertionsVersion>%(FluentAssertionsPackageReference.Version)</FluentAssertionsVersion>
+            <FluentAssertionsMajorVersion>$([System.Int32]::Parse($([System.String]::Copy('$([System.Text.RegularExpressions.Regex]::Match('$(FluentAssertionsVersion)', '^\d+').Value)'))))</FluentAssertionsMajorVersion>
+        </PropertyGroup>
+
+        <!-- Fail if major version >= 8 -->
+        <Error Condition="$(FluentAssertionsMajorVersion) &gt;= 8"
+               Text="FluentAssertions version $(FluentAssertionsVersion) is not allowed as it requires commercial license. Please use a version with major version less than 8." />
+    </Target>
+</Project>
